@@ -1,0 +1,11 @@
+row_index,column,is_injected_anomaly
+14,revenue_usd,True
+15,revenue_usd,True
+30,dau,True
+31,crash_rate_pct,True
+55,avg_session_length_min,True
+56,avg_session_length_min,True
+72,revenue_usd,True
+90,dau,True
+91,revenue_usd,True
+108,crash_rate_pct,True
