@@ -1,0 +1,38 @@
+name: evals
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  run-evals:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Regenerate synthetic dataset
+        run: |
+          python data/generate_liveops_data.py
+          python data/load_db.py
+
+      - name: Run MCP server self-test
+        run: python mcp_server/server.py --selftest
+
+      - name: Run eval suite (fails the build on regression)
+        run: pytest evals/ -v
+
+      - name: Generate eval report
+        run: python evals/run_evals.py
+
+      - name: Upload eval report
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-report
+          path: evals/results/report.md
