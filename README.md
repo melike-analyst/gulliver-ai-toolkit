@@ -8,7 +8,7 @@ Scoped to a concrete mobile-game live-ops dataset (DAU, revenue, session length,
 
 ---
 
-## 🌟 Key Features
+##  Key Features
 
 - **Model Context Protocol (MCP) Server**: Exposes database profiling, read-only SQL querying, and time-series anomaly detection tools directly to AI agents.
 - **Robust Anomaly Detection**: Implements a rolling-median + Interquartile Range (IQR) algorithm (`v2_robust`) resilient to sustained marketing campaigns, outperforming standard Z-score baselines.
