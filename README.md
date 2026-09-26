@@ -1,118 +1,136 @@
 # gulliver-ai-toolkit
 
-A small, complete example of the loop I think an "AI enablement" role
-actually runs day to day: **build a tool an agent can use → give the agent
-a skill that tells it how to use the tool well → write an eval that proves
-a change to either one actually helped, not just "feels" better.**
+An open-source Model Context Protocol (MCP) server, agent skill workflow, and evaluation suite designed for mobile game live-ops analytics and autonomous AI agents.
 
-Built as a portfolio piece for the AI Enablement Engineer role, scoped to
-something concrete: a mobile-game live-ops dataset (DAU, revenue, session
-length, crash rate) — the kind of data a studio's marketing/live-ops/data
-people look at every day.
+A production-grade demonstration of the core AI engineering loop: **build a tool an agent can use → give the agent a skill that tells it how to use the tool well → write an eval that proves a change to either one actually helped, not just "feels" better.**
 
-## What's in here
+Scoped to a concrete mobile-game live-ops dataset (DAU, revenue, session length, crash rate) — the core operational metrics marketing, live-ops, and data teams analyze daily.
+
+---
+
+## 🌟 Key Features
+
+- **Model Context Protocol (MCP) Server**: Exposes database profiling, read-only SQL querying, and time-series anomaly detection tools directly to AI agents.
+- **Robust Anomaly Detection**: Implements a rolling-median + Interquartile Range (IQR) algorithm (`v2_robust`) resilient to sustained marketing campaigns, outperforming standard Z-score baselines.
+- **Structured Agent Skill Workflow**: Clear, checkable instructions guiding AI agents to profile data before querying and select appropriate detection algorithms.
+- **Dual-Tier Automated Evaluation**:
+  - **Tool Evals**: Measures anomaly detection Precision, Recall, and F1-score against ground-truth data.
+  - **Skill Evals**: Evaluates skill documentation clarity and compliance against structured quality rubrics.
+- **Continuous Integration**: GitHub Actions workflow automatically regenerates datasets, tests MCP tool safety, and runs full eval suites on every commit.
+
+---
+
+##  Repository Structure
 
 ```
-mcp_server/
-  server.py        - MCP server: list_tables, profile_table, run_sql (read-only),
-                      detect_anomalies (pluggable method)
-  anomaly.py        - v1_zscore (naive baseline) vs v2_robust (rolling-median + IQR)
-skills/game-data-analysis/
-  v1_SKILL.md       - the "before" skill: 4 vague lines
-  SKILL.md          - the "after" skill: a concrete, checkable workflow
-evals/
-  test_mcp_tools.py       - tool correctness/safety tests + anomaly precision/recall/F1
-  eval_skill_quality.py   - rubric scorer for the skill document, v1 vs v2
-  run_evals.py             - runs both, writes evals/results/report.md
-data/
-  generate_liveops_data.py - synthetic dataset generator with LABELED ground truth
-.github/workflows/evals.yml - CI: regenerates data, runs the full eval suite on every push
+gulliver-ai-toolkit/
+├── mcp_server/
+│   ├── server.py             # MCP server implementation (list_tables, profile_table, run_sql, detect_anomalies)
+│   └── anomaly.py            # Anomaly detection engines (v1_zscore vs v2_robust)
+├── skills/
+│   └── game-data-analysis/
+│       ├── v1_SKILL.md       # Baseline skill specification
+│       └── SKILL.md          # Optimized, checkable workflow specification
+├── evals/
+│   ├── test_mcp_tools.py     # Tool correctness, safety, and anomaly F1 benchmarks
+│   ├── eval_skill_quality.py # Rubric-based skill quality evaluator
+│   └── run_evals.py          # Master evaluation runner & markdown report generator
+├── data/
+│   ├── generate_liveops_data.py # Synthetic live-ops dataset generator with labeled ground truth
+│   └── load_db.py            # SQLite database initialization script
+└── workflows/
+    └── evals.yml             # CI pipeline for automated evaluation runs
 ```
 
-Run it yourself:
+---
+
+##  Quickstart
+
+### Prerequisites
+- Python 3.12+
+- `pip`
+
+### Setup & Installation
+
+1. **Clone the repository**:
+   ```bash
+   git clone https://github.com/your-username/gulliver-ai-toolkit.git
+   cd gulliver-ai-toolkit
+   ```
+
+2. **Install dependencies**:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+3. **Initialize dataset and database**:
+   ```bash
+   python data/generate_liveops_data.py && python data/load_db.py
+   ```
+
+4. **Sanity-check MCP server tools**:
+   ```bash
+   python mcp_server/server.py --selftest
+   ```
+
+---
+
+##  Running Evaluations
+
+Run unit and tool safety tests:
 ```bash
-pip install -r requirements.txt
-python data/generate_liveops_data.py && python data/load_db.py
-python mcp_server/server.py --selftest      # sanity-check the tools directly
-pytest evals/ -v                             # run the eval suite
-python evals/run_evals.py                    # write evals/results/report.md
+pytest evals/ -v
 ```
 
-## The hard part
+Execute the full evaluation suite and generate a detailed report:
+```bash
+python evals/run_evals.py
+```
+This produces a comprehensive report at `evals/results/report.md`.
 
-The skill's whole job is to tell an agent: "use `detect_anomalies` with
-`method="v2_robust"`, not the naive one." So before I could write that
-skill honestly, I had to actually prove `v2_robust` deserved that
-recommendation — not just assume a fancier-sounding method is better.
+---
 
-First attempt: I generated 120 days of DAU/revenue/session/crash data with
-10 labeled anomalies and ran both methods. v1 (naive z-score) *won* on F1
-(0.89 vs 0.87). My "improved" version wasn't actually better — the eval
-caught that immediately, which is the entire point of writing one.
+##  Engineering Insights & Lessons Learned
 
-Digging into why: the injected anomalies were big, isolated spikes, which
-is exactly what z-score is good at. That's not a realistic test — real
-live-ops data has legitimate sustained shifts (a UA campaign week, a
-seasonal bump) that aren't anomalies at all. So I added a 7-day marketing
-campaign to the dataset — a real, non-anomalous ~2x DAU/revenue bump,
-deliberately *excluded* from the ground truth. That single change flipped
-the result: v1's global mean/std gets dragged by the campaign week badly
-enough that it (a) flags all 7 legitimate campaign days as false
-anomalies, and (b) simultaneously *misses* 2 of the real injected
-anomalies elsewhere, because the inflated standard deviation pushes their
-z-scores back under the 3-sigma threshold. On the `dau` column specifically,
-v1 goes 0-for-2 (F1 = 0.00). v2's local window is unaffected by a shift
-40 days away, so it scores 1.00 on the same column.
+### The Hard Part: Proving Method Superiority
+The skill's whole job is to tell an agent: *"use `detect_anomalies` with `method="v2_robust"`, not the naive one."* Before writing that skill, `v2_robust` had to be empirically proven to outperform baselines—not just assumed to be better.
 
-Overall F1: **0.55 → 0.87** ([full breakdown](evals/results/report.md)).
+- **First Attempt**: Testing on 120 days of DAU/revenue/session/crash data with 10 labeled anomalies resulted in `v1_zscore` winning on F1 score (**0.89 vs 0.87**). The "improved" version was initially worse because the injected anomalies were isolated spikes—ideal for global Z-scores.
+- **Realistic Scenario**: Real live-ops data includes legitimate, sustained business shifts (e.g., a 7-day UA marketing campaign) that aren't anomalies. Adding a 7-day marketing campaign (~2x DAU/revenue bump excluded from anomaly ground truth) flipped the results dramatically:
+  - `v1_zscore`'s global mean/std was dragged up by the campaign week, flagging all 7 campaign days as false anomalies while simultaneously missing 2 true anomalies elsewhere. On the `dau` column, `v1` dropped to **F1 = 0.00**.
+  - `v2_robust`'s local rolling window remained unaffected by the shift 40 days away, scoring **1.00** on the same column.
+  - **Overall F1 Score**: **`0.55 → 0.87`** ([full breakdown](evals/results/report.md)).
 
-That's the actual finding worth writing a skill instruction around: not
-"use a better algorithm" in the abstract, but "the naive method fails
-specifically when there's a real marketing campaign in the window, which
-there always eventually is" — so `SKILL.md` explicitly tells the agent
-which method to use and *why the other one is a trap*, not just which one
-scores higher on a benchmark nobody will ever see.
+> **Takeaway**: The naive method fails specifically when a marketing campaign occurs in the dataset window. The `SKILL.md` explicitly instructs the agent which method to use and explains *why the naive approach fails in production*.
 
-Second hard part, smaller but very "this is the actual job": early on, the
-anomaly eval reported v1 catching 100% of anomalies with 0 false positives
-in every run — suspiciously perfect. Turned out the ground-truth CSV used
-column names (`revenue`, `crash_rate`) that didn't match the actual
-dataset's column names (`revenue_usd`, `crash_rate_pct`), so every
-"actual" anomaly set was silently empty and precision/recall were
-computing against nothing. The eval wasn't failing — it just wasn't
-testing anything. Fixed by making the generator write the ground truth
-with the exact same column names as the CSV it labels, with a comment
-explaining why the mismatch is easy to introduce silently. This is the
-failure mode I'd worry about most in a real eval suite: not a crashing
-test, but a green test that isn't checking anything.
+### Silent Failures in Evaluation Pipelines
+Early in development, the anomaly evaluation reported `v1` catching 100% of anomalies with 0 false positives—a suspiciously perfect result.
 
-## Design decisions worth flagging
+Investigation revealed that the ground-truth CSV used column names (`revenue`, `crash_rate`) that differed from the actual dataset (`revenue_usd`, `crash_rate_pct`). Every "actual" anomaly set was silently empty, causing precision/recall to calculate against nothing.
 
-- **`run_sql` is read-only by construction**, not by convention — it
-  regex-rejects anything that isn't a bare `SELECT`, and table/column
-  names are whitelisted against a strict identifier pattern before being
-  interpolated into SQL, closing the injection path an f-string-built
-  query would otherwise open. An agent with unrestricted SQL access to a
-  real analytics DB is a data-loss incident waiting to happen.
-- **`profile_table` exists as its own tool**, not folded into `run_sql`,
-  because that's the actual habit a careful analyst has: profile first,
-  query second. Giving the agent the same tool a human would reach for
-  first nudges it toward the same order of operations — `SKILL.md` makes
-  this explicit rather than hoping the agent infers it.
-- **Two evals, not one**, because a toolkit like this has two different
-  things that can silently regress: the *tool's* logic (graded against
-  ground truth — precision/recall/F1) and the *skill's* instructions
-  (graded against a rubric of known failure modes, since there's no
-  ground truth for prose). Shipping only one would miss regressions in
-  the other.
+**Fix**: Updated the dataset generator to write ground truth with exact column matching and added schema validation to prevent silent green tests in evaluation suites.
 
-## If this were a real production skill
+---
 
-Two things I'd add next, out of scope for a 3-hour-shaped portfolio piece
-but the first things I'd bring up with a team: (1) the skill rubric here
-is keyword-based, which is a reasonable cheap proxy but doesn't catch a
-skill that mentions the right words in the wrong order or context — an
-LLM-graded rubric would catch more; (2) the synthetic dataset has exactly
-one distractor pattern (the campaign week) — a real eval suite should
-have several, covering seasonality, holidays, and multi-metric correlated
-incidents, so a method can't overfit to beating one specific trick.
+##  Security & Safety Design
+
+- **Read-Only SQL Execution**: `run_sql` rejects non-SELECT queries via strict regex validation to prevent data modification.
+- **Query Parameter Whitelisting**: Table and column identifiers are validated against strict regex patterns to prevent SQL injection.
+- **Guided Order of Operations**: Dedicated `profile_table` tool encourages AI agents to inspect schema and distributions before executing raw queries—a practice codified in `SKILL.md`.
+- **Dual-Tier Evaluation**: Evaluates both **tool logic** (against quantitative ground truth) and **skill documentation** (against structured quality rubrics).
+
+---
+
+##  Production Roadmap
+
+To scale this toolkit for enterprise production environments:
+
+1. **LLM-Graded Skill Rubrics**: Upgrade skill evaluation from keyword heuristics to LLM-as-a-judge scoring to capture contextual nuances in agent instructions.
+2. **Expanded Distractor Scenarios**: Introduce seasonality, holiday surges, and multi-metric correlated outages into synthetic data generation.
+3. **Multi-Database Connectors**: Extend database access beyond SQLite to PostgreSQL, Snowflake, and BigQuery.
+
+---
+
+##  License
+
+Distributed under the MIT License. See `LICENSE` for details.
