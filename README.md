@@ -1,4 +1,3 @@
-#al-toolkit
 
 An open-source Model Context Protocol (MCP) server, agent skill workflow, and evaluation suite designed for mobile game live-ops analytics and autonomous AI agents.
 
